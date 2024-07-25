@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
-  title: Simple Pet API
-  description: A simple API to test code generation
+  title: Extended Pet Store API
+  description: An extended API to test code generation with allOf and oneOf
   version: 1.0.0
 
 servers:
@@ -24,9 +24,32 @@ paths:
                 items:
                   $ref: '#/components/schemas/Pet'
 
+  /pets/{petId}:
+    get:
+      summary: Get a pet by ID
+      operationId: getPetById
+      tags:
+        - pet
+      parameters:
+        - name: petId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: A single pet.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PetDetails'
+        '404':
+          description: Pet not found
+
 components:
   schemas:
-    Pet:
+    BasePet:
       type: object
       properties:
         id:
@@ -34,8 +57,40 @@ components:
           format: int64
         name:
           type: string
-        tag:
-          type: string
       required:
         - id
         - name
+
+    Pet:
+      allOf:
+        - $ref: '#/components/schemas/BasePet'
+        - type: object
+          properties:
+            tag:
+              type: string
+
+    Dog:
+      allOf:
+        - $ref: '#/components/schemas/BasePet'
+        - type: object
+          properties:
+            breed:
+              type: string
+
+    Cat:
+      allOf:
+        - $ref: '#/components/schemas/BasePet'
+        - type: object
+          properties:
+            color:
+              type: string
+
+    PetDetails:
+      oneOf:
+        - $ref: '#/components/schemas/Dog'
+        - $ref: '#/components/schemas/Cat'
+      discriminator:
+        propertyName: petType
+        mapping:
+          dog: '#/components/schemas/Dog'
+          cat: '#/components/schemas/Cat'

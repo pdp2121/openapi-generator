@@ -1,0 +1,1105 @@
+openapi: 3.1.0
+info:
+  title: XRP Ledger Public API
+  description: A JSON RPC API used to query rippled.
+  version: 1.0.0
+servers:
+  - url: https://s1.ripple.com:51234
+    description: Mainnet Public API server
+  - url: https://s.altnet.rippletest.net:51234
+    description: Testnet (not for production usage)
+security: []
+paths:
+  /:
+    post:
+      summary: Send JSON-RPC request to server
+      requestBody:
+        description: JSON-RPC request object
+        content:
+          application/json:
+            schema:
+              discriminator:
+                propertyName: method
+                mapping:
+                  account_channels: '#/components/schemas/schemas-AccountChannelsRequest'
+                  account_info: '#/components/schemas/schemas-AccountInfoRequest'
+                  submit: '#/components/schemas/schemas-SubmitRequestV1'
+              oneOf:
+                - $ref: '#/components/schemas/schemas-AccountChannelsRequest'
+                - $ref: '#/components/schemas/schemas-AccountInfoRequest'
+                - $ref: '#/components/schemas/schemas-SubmitRequestV1'
+        required: true
+      operationId: POST
+      responses:
+        '200':
+          description: JSON-RPC response object
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/AccountChannelsResponse'
+                  - $ref: '#/components/schemas/AccountInfoResponseV1'
+                  - $ref: '#/components/schemas/SubmitResponseV1'
+        '503':
+          description: An error for when the client is over the server's rate limit.
+          content:
+            text/plain:
+              schema:
+                type: string
+                enum:
+                  - |-
+                    503 Service Unavailable
+
+                    Server is overloaded
+        4XX:
+          description: JSON-RPC http error. The response is a plain-text explanation with the http error code and description in the response body.
+          content:
+            text/plain:
+              schema:
+                type: string
+        5XX:
+          description: JSON-RPC http error. The response is a plain-text explanation with the http error code and description in the response body.
+          content:
+            text/plain:
+              schema:
+                type: string
+components:
+  schemas:
+    LookupByLedgerRequest:
+      type: object
+      description: Additional information shared in requests which search for specific ledger data.
+      properties:
+        ledger_hash:
+          type: string
+          description: A 20-byte hex string for the ledger version to use.
+        ledger_index:
+          oneOf:
+            - type: string
+            - type: integer
+          description: The ledger index of the ledger to use, or a shortcut string.
+    BaseRequest:
+      type: object
+      description: Information which could be included in every request sent to rippled
+      properties:
+        api_version:
+          type: integer
+          description: The API version to use. If omitted, uses version 1.
+    AccountChannelsRequest:
+      summary: |
+        The account_channels method returns information about an account's Payment Channels.  This includes only channels where the specified account is the channel's source, not the destination.  (A channel's source and owner are the same.) All information retrieved is relative to a particular version of the ledger.  Returns an AccountChannelsResponse.
+      type: object
+      allOf:
+        - $ref: '#/components/schemas/LookupByLedgerRequest'
+        - $ref: '#/components/schemas/BaseRequest'
+      properties:
+        account:
+          type: string
+          description: The unique identifier of an account, typically the account's address.
+        destination_account:
+          type: string
+          description: The unique identifier of an account, typically the account's address. If provided, filter results to payment channels whose destination is this account.
+        limit:
+          type: number
+          minimum: 10
+          maximum: 400
+          description: Limit the number of transactions to retrieve. Cannot be less than 10 or more than 400. The default is 200.
+        marker:
+          description: Value from a previous paginated response. Resume retrieving data where that response left off.
+      required:
+        - account
+    schemas-AccountChannelsRequest:
+      type: object
+      description: |
+        The account_channels method returns information about an account's Payment Channels.  This includes only channels where the specified account is the channel's source, not the destination.  (A channel's source and owner are the same.) All information retrieved is relative to a particular version of the ledger.  Returns an AccountChannelsResponse.
+      properties:
+        method:
+          type: string
+          enum:
+            - account_channels
+        params:
+          type: array
+          items:
+            $ref: '#/components/schemas/AccountChannelsRequest'
+      required:
+        - method
+      example:
+        method: account_channels
+        params:
+          - account: rf1BiGeXwwQoi8Z2ueFYTEXSwuJYfV2Jpn
+            destination_account: ra5nK24KXen9AHvsdFTKHSANinZseWnPcX
+            ledger_index": validated
+    AccountInfoRequest:
+      summary: |
+        The account_info command retrieves information about an account, its activity, and its XRP balance. All information retrieved is relative to a particular version of the ledger. Returns an AccountInfoResponse
+      type: object
+      allOf:
+        - $ref: '#/components/schemas/LookupByLedgerRequest'
+        - $ref: '#/components/schemas/BaseRequest'
+      properties:
+        account:
+          type: string
+          description: The account to look up.
+        queue:
+          type: boolean
+          description: If true, return stats about queued transactions sent by this account. Can only be used when querying for the data from the current open ledger. Not available from servers in Reporting Mode.
+        signer_lists:
+          type: boolean
+          description: |
+            API v1: If true, return any SignerList objects associated with this account. API v2: Identical to v1, but also returns an invalidParams error if you provide a non-boolean value.
+      required:
+        - account
+    schemas-AccountInfoRequest:
+      type: object
+      description: |
+        The account_info command retrieves information about an account, its activity, and its XRP balance. All information retrieved is relative to a particular version of the ledger. Returns an AccountInfoResponse
+      properties:
+        method:
+          type: string
+          enum:
+            - account_info
+        params:
+          type: array
+          items:
+            $ref: '#/components/schemas/AccountInfoRequest'
+      required:
+        - method
+      example:
+        method: account_info
+        params:
+          - account: rG1QQv2nh2gr7RCZ1P8YYcBUKCCN633jCn
+            ledger_index: current
+            queue: true
+    SubmitRequestBase:
+      description: |
+        The submit method applies a transaction and sends it to the network to be confirmed and included in future ledgers.
+        This command has two modes:
+        - Submit-only mode takes a signed, serialized transaction as a binary blob, and submits it to the network as-is. Since signed transaction objects are immutable, no part of the transaction can be modified or automatically filled in after submission. - Sign-and-submit mode takes a JSON-formatted Transaction object, completes and signs the transaction in the same manner as the sign method, and then submits the signed transaction. We recommend only using this mode for testing and development. To send a transaction as robustly as possible, you should construct and sign it in advance, persist it somewhere that you can access even after a power outage, then submit it as a tx_blob. After submission, monitor the network with the tx method command to see if the transaction was successfully applied; if a restart or other problem occurs, you can safely re-submit the tx_blob transaction: it won't be applied twice since it has the same sequence number as the old transaction.
+      type: object
+      properties:
+        method:
+          type: string
+          enum:
+            - submit
+      required:
+        - method
+    SubmitOnlyMode:
+      description: A submit-only request for submitting transactions.
+      type: object
+      properties:
+        tx_blob:
+          type: string
+          description: Hex representation of the signed transaction to submit. Can be a multi-signed transaction.
+        fail_hard:
+          type: boolean
+          description: If true, and the transaction fails locally, do not retry or relay the transaction to other servers. Default is false.
+      required:
+        - tx_blob
+    SignAndSubmitModeBase:
+      description: A mode for signing a transaction and immediately submitting it. This mode is intended for testing.
+      type: object
+      properties:
+        secret:
+          type: string
+          description: (Optional) Secret key of the account supplying the transaction, used to sign it. Do not send your secret to untrusted servers or through unsecured network connections. Cannot be used with key_type, seed, seed_hex, or passphrase.
+        seed:
+          type: string
+          description: (Optional) Secret key of the account supplying the transaction, used to sign it. Must be in the XRP Ledger's base58 format. If provided, you must also specify the key_type. Cannot be used with secret, seed_hex, or passphrase.
+        seed_hex:
+          type: string
+          description: (Optional) Secret key of the account supplying the transaction, used to sign it. Must be in hexadecimal format. If provided, you must also specify the key_type. Cannot be used with secret, seed, or passphrase.
+        passphrase:
+          type: string
+          description: (Optional) Secret key of the account supplying the transaction, used to sign it, as a string passphrase. If provided, you must also specify the key_type. Cannot be used with secret, seed, or seed_hex.
+        key_type:
+          type: string
+          description: '(Optional) Type of cryptographic key provided in this request. Valid types are secp256k1 or ed25519. Defaults to secp256k1. Cannot be used with secret. Caution: Ed25519 support is experimental.'
+        fail_hard:
+          type: boolean
+          description: '(Optional) If true, and the transaction fails locally, do not retry or relay the transaction to other servers. Default is false. Updated in: rippled 1.5.0'
+        offline:
+          type: boolean
+          description: (Optional) If true, when constructing the transaction, do not try to automatically fill in or validate values. Default is false.
+        build_path:
+          type: boolean
+          description: '(Optional) If this field is provided, the server auto-fills the Paths field of a Payment transaction before signing. Omit this field if the transaction is a direct XRP payment or if it is not a Payment-type transaction. Caution: The server looks for the presence or absence of this field, not its value. This behavior may change. (Issue #3272)'
+        fee_mult_max:
+          type: integer
+          description: (Optional) Sign-and-submit fails with the error rpcHIGH_FEE if the auto-filled Fee value would be greater than the reference transaction cost x fee_mult_max ÷ fee_div_max. This field has no effect if you explicitly specify the Fee field of the transaction. Default is 10.
+        fee_div_max:
+          type: integer
+          description: (Optional) Sign-and-submit fails with the error rpcHIGH_FEE if the auto-filled Fee value would be greater than the reference transaction cost x fee_mult_max ÷ fee_div_max. This field has no effect if you explicitly specify the Fee field of the transaction. Default is 1.
+    BaseTransaction:
+      type: object
+      required:
+        - Account
+        - TransactionType
+      properties:
+        Account:
+          type: string
+          description: The unique address of the account that initiated the transaction.
+        TransactionType:
+          type: string
+          description: |
+            The type of transaction. Valid transaction types include: Payment, OfferCreate, TrustSet, and many others.
+        Fee:
+          type: string
+          description: Integer amount of XRP, in drops, to be destroyed as a cost for distributing this transaction to the network. Some transaction types have different minimum requirements. See Transaction Cost for details.
+        Sequence:
+          type: integer
+          format: uint32
+          description: The sequence number of the account sending the transaction. A transaction is only valid if the Sequence number is exactly 1 greater than the previous transaction from the same account. The special case 0 means the transaction is using a Ticket instead.
+        AccountTxnID:
+          type: string
+          description: Hash value identifying another transaction. If provided, this transaction is only valid if the sending account's previously-sent transaction matches the provided hash.
+        Flags:
+          type: integer
+          format: uint32
+          description: Set of bit-flags for this transaction.
+        LastLedgerSequence:
+          type: integer
+          format: uint32
+          description: Highest ledger index this transaction can appear in. Specifying this field places a strict upper limit on how long the transaction can wait to be validated or rejected.
+        Memos:
+          type: array
+          items:
+            type: object
+          description: Additional arbitrary information used to identify this transaction.
+        NetworkID:
+          type: integer
+          format: uint32
+          description: The network ID of the chain this transaction is intended for. MUST BE OMITTED for Mainnet and some test networks. REQUIRED on chains whose network ID is 1025 or higher.
+        Signers:
+          type: array
+          items:
+            type: object
+          description: Array of objects that represent a multi-signature which authorizes this transaction.
+        SourceTag:
+          type: integer
+          format: uint32
+          description: Arbitrary integer used to identify the reason for this payment, or a sender on whose behalf this transaction is made.
+        SigningPubKey:
+          type: string
+          description: Hex representation of the public key that corresponds to the private key used to sign this transaction. If an empty string, indicates a multi-signature is present in the Signers field instead.
+        TicketSequence:
+          type: integer
+          format: uint32
+          description: The sequence number of the ticket to use in place of a Sequence number. If this is provided, Sequence must be 0. Cannot be used with AccountTxnID.
+        TxnSignature:
+          type: string
+          description: The signature that verifies this transaction as originating from the account it says it is from.
+    TokenAmount:
+      type: object
+      properties:
+        currency:
+          type: string
+          description: Arbitrary currency code for the token. Cannot be XRP.
+        value:
+          type: string
+          pattern: ^[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?$
+          description: Quoted decimal representation of the amount of the token. This can include scientific notation, such as 1.23e11 meaning 123,000,000,000. Both e and E may be used. This can be negative when displaying balances, but negative values are disallowed in other contexts such as specifying how much to send.
+        issuer:
+          type: string
+          description: Generally, the account that issues this token. In special cases, this can refer to the account that holds the token instead (for example, in a Clawback transaction).
+    CurrencyAmount:
+      oneOf:
+        - type: string
+          description: The amount of XRP (drops), represented as a string.
+        - $ref: '#/components/schemas/TokenAmount'
+    Path:
+      type: object
+      properties:
+        account:
+          type: string
+          format: address
+          description: (Optional) If present, this path step represents rippling through the specified address. MUST NOT be provided if this step specifies the currency or issuer fields.
+        currency:
+          type: string
+          description: (Optional) If present, this path step represents changing currencies through an order book. The currency specified indicates the new currency. MUST NOT be provided if this step specifies the account field.
+        issuer:
+          type: string
+          format: address
+          description: (Optional) If present, this path step represents changing currencies and this address defines the issuer of the new currency. If omitted in a step with a non-XRP currency, a previous step of the path defines the issuer. If present when currency is omitted, indicates a path step that uses an order book between same-named currencies with different issuers. MUST be omitted if the currency is XRP. MUST NOT be provided if this step specifies the account field.
+        type:
+          type: integer
+          description: DEPRECATED (Optional) An indicator of which other fields are present.
+        type_hex:
+          type: string
+          description: 'DEPRECATED: (Optional) A hexadecimal representation of the type field.'
+    PaymentTransactionBase:
+      summary: |
+        A Payment transaction represents a transfer of value from one account to another. (Depending on the path taken, this can involve additional exchanges of value, which occur atomically.) This transaction type can be used for several types of payments. Payments are also the only way to create accounts.
+      type: object
+      allOf:
+        - $ref: '#/components/schemas/BaseTransaction'
+      properties:
+        TransactionType:
+          type: string
+          enum:
+            - Payment
+        DeliverMin:
+          $ref: '#/components/schemas/CurrencyAmount'
+          description: (Optional) Minimum amount of destination currency this transaction should deliver. Only valid if this is a partial payment. For non-XRP amounts, the nested field names are lower-case.
+        Destination:
+          type: string
+          description: The unique address of the account receiving the payment.
+        DestinationTag:
+          type: integer
+          description: (Optional) Arbitrary tag that identifies the reason for the payment to the destination, or a hosted recipient to pay.
+        InvoiceID:
+          type: string
+          description: (Optional) Arbitrary 256-bit hash representing a specific reason or identifier for this payment.
+        Paths:
+          type: array
+          items:
+            type: array
+            items:
+              $ref: '#/components/schemas/Path'
+          description: (Optional, auto-fillable) Array of payment paths to be used for this transaction. Must be omitted for XRP-to-XRP transactions.
+        SendMax:
+          $ref: '#/components/schemas/CurrencyAmount'
+          description: (Optional) Highest amount of source currency this transaction is allowed to cost, including transfer fees, exchange rates, and slippage. Does not include the XRP destroyed as a cost for submitting the transaction. For non-XRP amounts, the nested field names MUST be lower-case. Must be supplied for cross-currency/cross-issue payments. Must be omitted for XRP-to-XRP payments.
+      required:
+        - TransactionType
+        - Destination
+    PaymentTransactionV1:
+      type: object
+      allOf:
+        - $ref: '#/components/schemas/PaymentTransactionBase'
+      properties:
+        Amount:
+          $ref: '#/components/schemas/CurrencyAmount'
+          description: Only available in API v1. The maximum amount of currency to deliver. For non-XRP amounts, the nested field names MUST be lower-case. If the tfPartialPayment flag is set, deliver up to this amount instead.
+      required:
+        - Amount
+    SignAndSubmitModeV1:
+      type: object
+      allOf:
+        - $ref: '#/components/schemas/SignAndSubmitModeBase'
+      properties:
+        tx_json:
+          type: object
+          discriminator:
+            propertyName: TransactionType
+            mapping:
+              Payment: '#/components/schemas/PaymentTransactionV1'
+          oneOf:
+            - $ref: '#/components/schemas/PaymentTransactionV1'
+          description: Transaction definition in JSON format, optionally omitting any auto-fillable fields.
+      required:
+        - tx_json
+    SubmitRequestV1:
+      oneOf:
+        - $ref: '#/components/schemas/SubmitOnlyMode'
+        - $ref: '#/components/schemas/SignAndSubmitModeV1'
+    schemas-SubmitRequestV1:
+      type: object
+      allOf:
+        - $ref: '#/components/schemas/SubmitRequestBase'
+      properties:
+        params:
+          type: array
+          items:
+            $ref: '#/components/schemas/SubmitRequestV1'
+      example:
+        method: submit
+        params:
+          - tx_blob: 1200002280000000240000000361D4838D7EA4C6800000000000000000000000000055534400000000004B4E9C06F24296074F7BC48F92A97916C6DC5EA968400000000000000A732103AB40A0490F9B7ED8DF29D246BF2D6269820A0EE7742ACDD457BEA7C7D0931EDB74473045022100D184EB4AE5956FF600E7536EE459345C7BBCF097A84CC61A93B9AF7197EDB98702201CEA8009B7BEEBAA2AACC0359B41C427C1C5B550A4CA4B80CF2174AF2D6D5DCE81144B4E9C06F24296074F7BC48F92A97916C6DC5EA983143E9D4A2B8AA0780F682D136F7A56D6724EF53754
+    ResponseWarning:
+      type: object
+      description: Used to share rate-limiting warnings or other potential issues with a request.
+      properties:
+        details:
+          type: object
+          additionalProperties:
+            type: string
+          description: Additional information about this warning. The contents vary depending on the type of warning.
+        id:
+          type: integer
+          description: A unique numeric code for this warning message.
+        message:
+          type: string
+          description: |
+            A human-readable string describing the cause of this message. Do not write software that relies the contents of this message; use the id (and details, if applicable) to identify the warning instead.
+      required:
+        - id
+        - message
+    BaseSuccessResponse:
+      type: object
+      description: Information which is included in every successful response from a request sent to rippled.
+      properties:
+        forwarded:
+          type: boolean
+          description: Indicates whether the request was forwarded.
+        status:
+          type: string
+          description: The status of the response (e.g., 'success').
+          enum:
+            - success
+        warning:
+          type: string
+          description: A specific warning type (e.g., 'load').
+        warnings:
+          type: array
+          items:
+            $ref: '#/components/schemas/ResponseWarning'
+          description: An array of response warnings.
+      required:
+        - status
+    Channel:
+      type: object
+      properties:
+        account:
+          type: string
+          description: The owner of the channel, as an Address.
+        amount:
+          type: string
+          description: The total amount of XRP, in drops allocated to this channel.
+        balance:
+          type: string
+          description: |
+            The total amount of XRP, in drops, paid out from this channel, as of the ledger version used. (You can calculate the amount of XRP left in the channel by subtracting balance from amount.)
+        cancel_after:
+          type: integer
+          description: |
+            Time, in seconds since the Ripple Epoch, of this channel's immutable expiration, if one was specified at channel creation. If this is before the close time of the most recent validated ledger, the channel is expired.
+        channel_id:
+          type: string
+          description: |
+            A unique ID for this channel, as a 64-character hexadecimal string. This is also the ID of the channel object in the ledger's state data.
+        destination_account:
+          type: string
+          description: The destination account of the channel, as an Address. Only this account can receive the XRP in the channel while it is open.
+        destination_tag:
+          type: integer
+          description: |
+            A 32-bit unsigned integer to use as a destination tag for payments through this channel, if one was specified at channel creation. This indicates the payment channel's beneficiary or other purpose at the destination account.
+        expiration:
+          type: integer
+          description: |
+            Time, in seconds since the Ripple Epoch, when this channel is set to expire. This expiration date is mutable. If this is before the close time of the most recent validated ledger, the channel is expired.
+        public_key:
+          type: string
+          description: |
+            The public key for the payment channel in the XRP Ledger's base58 format. Signed claims against this channel must be redeemed with the matching key pair.
+        public_key_hex:
+          type: string
+          description: |
+            The public key for the payment channel in hexadecimal format, if one was specified at channel creation. Signed claims against this channel must be redeemed with the matching key pair.
+        settle_delay:
+          type: integer
+          description: |
+            The number of seconds the payment channel must stay open after the owner of the channel requests to close it.
+        source_tag:
+          type: integer
+          description: |
+            A 32-bit unsigned integer to use as a source tag for payments through this payment channel, if one was specified at channel creation. This indicates the payment channel's originator or other purpose at the source account.
+      required:
+        - account
+        - amount
+        - balance
+        - channel_id
+        - destination_account
+        - settle_delay
+    AccountChannelsSuccessResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseSuccessResponse'
+        - $ref: '#/components/schemas/LookupByLedgerRequest'
+      type: object
+      properties:
+        account:
+          type: string
+          description: The address of the source/owner of the payment channels. This corresponds to the account field of the request.
+        channels:
+          type: array
+          items:
+            $ref: '#/components/schemas/Channel'
+          description: Payment channels owned by this account.
+        validated:
+          type: boolean
+          description: If true, the information in this response comes from a validated ledger version. Otherwise, the information is subject to change.
+        limit:
+          type: number
+          description: The limit to how many channel objects were actually returned by this request.
+        marker:
+          description: Server-defined value for pagination. Pass this to the next call to resume getting results where this call left off. Omitted when there are no additional pages after this one.
+      required:
+        - account
+    UniversalErrorResponseCodes:
+      enum:
+        - amendmentBlocked
+        - failedToForward
+        - invalid_API_version
+        - noClosed
+        - noCurrent
+        - noNetwork
+        - tooBusy
+        - unknownCmd
+      description: |
+        * `amendmentBlocked` - The server is amendment blocked and needs to be updated to the latest version to stay synced with the XRP Ledger network. * `failedToForward` - (Reporting Mode servers only) The server tried to forward this request to a P2P Mode server, but the connection failed. * `invalid_API_version` - The server does not support the API version number from the request. * `noClosed` - The server does not have a closed ledger, typically because it has not finished starting up. * `noCurrent` - The server does not know what the current ledger is, due to high load, network problems, validator failures, incorrect configuration, or some other problem. * `noNetwork` - The server is having trouble connecting to the rest of the XRP Ledger peer-to-peer network (and is not running in stand-alone mode). * `tooBusy` - The server is under too much load to do this command right now. Generally not returned if you are connected as an admin. * `unknownCmd` - The request does not contain a command that the rippled server recognizes.
+    AccountChannelsErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          oneOf:
+            - $ref: '#/components/schemas/UniversalErrorResponseCodes'
+            - enum:
+                - invalidParams
+                - actNotFound
+                - lgrNotFound
+          description: |
+            * `invalidParams` - One or more fields are specified incorrectly, or one or more required fields are missing. * `actNotFound` - The address specified in the `account` field of the request does not correspond to an account in the ledger. * `lgrNotFound` - The ledger specified by the `ledger_hash` or `ledger_index` does not exist, or it does exist but the server does not have it.
+        status:
+          type: string
+          enum:
+            - error
+        request:
+          $ref: '#/components/schemas/AccountChannelsRequest'
+      required:
+        - status
+        - error
+        - request
+    AccountChannelsResponse:
+      type: object
+      properties:
+        result:
+          type: object
+          discriminator:
+            propertyName: status
+            mapping:
+              success: '#/components/schemas/AccountChannelsSuccessResponse'
+              error: '#/components/schemas/AccountChannelsErrorResponse'
+          oneOf:
+            - $ref: '#/components/schemas/AccountChannelsSuccessResponse'
+            - $ref: '#/components/schemas/AccountChannelsErrorResponse'
+      required:
+        - result
+      example:
+        result:
+          account: rf1BiGeXwwQoi8Z2ueFYTEXSwuJYfV2Jpn
+          channels:
+            - account: rf1BiGeXwwQoi8Z2ueFYTEXSwuJYfV2Jpn
+              amount: '1000'
+              balance: '0'
+              channel_id: C7F634794B79DB40E87179A9D1BF05D05797AE7E92DF8E93FD6656E8C4BE3AE7
+              destination_account: ra5nK24KXen9AHvsdFTKHSANinZseWnPcX
+              public_key: aBR7mdD75Ycs8DRhMgQ4EMUEmBArF8SEh1hfjrT2V9DQTLNbJVqw
+              public_key_hex: 03CFD18E689434F032A4E84C63E2A3A6472D684EAF4FD52CA67742F3E24BAE81B2
+              settle_delay: 60
+          ledger_hash: 27F530E5C93ED5C13994812787C1ED073C822BAEC7597964608F2C049C2ACD2D
+          ledger_index: 71766343
+          status: success
+          validated: true
+    AccountFlags:
+      type: object
+      properties:
+        defaultRipple:
+          type: boolean
+          description: If true, the account allows rippling on its trust lines by default.
+        depositAuth:
+          type: boolean
+          description: If true, the account is using Deposit Authorization and does not accept any payments from unknown parties.
+        disableMasterKey:
+          type: boolean
+          description: If true, the account's master key pair is disabled.
+        disallowIncomingCheck:
+          type: boolean
+          description: If true, the account does not allow others to send Checks to it.
+        disallowIncomingNFTokenOffer:
+          type: boolean
+          description: If true, the account does not allow others to make NFT buy or sell offers to it.
+        disallowIncomingPayChan:
+          type: boolean
+          description: If true, the account does not allow others to make Payment Channels to it.
+        disallowIncomingTrustline:
+          type: boolean
+          description: If true, the account does not allow others to make trust lines to it.
+        disallowIncomingXRP:
+          type: boolean
+          description: If true, the account does not want to receive XRP from others. This is advisory and not enforced at a protocol level.
+        globalFreeze:
+          type: boolean
+          description: If true, all tokens issued by the account are currently frozen.
+        noFreeze:
+          type: boolean
+          description: If true, the account has permanently given up the abilities to freeze individual trust lines or end a global freeze.
+        passwordSpent:
+          type: boolean
+          description: If false, the account can send a special key reset transaction with a transaction cost of 0.
+        requireAuthorization:
+          type: boolean
+          description: If true, the account is using Authorized Trust Lines to limit who can hold the tokens it issues.
+        requireDestinationTag:
+          type: boolean
+          description: If true, the account requires a destination tag on all payments it receives.
+    Transactions:
+      type: object
+      properties:
+        auth_change:
+          type: boolean
+          description: Whether this transaction changes this address's ways of authorizing transactions.
+        fee:
+          type: string
+          description: The Transaction Cost of this transaction, in drops of XRP.
+        fee_level:
+          type: string
+          description: The transaction cost of this transaction, relative to the minimum cost for this type of transaction, in fee levels.
+        max_spend_drops:
+          type: string
+          description: The maximum amount of XRP, in drops, this transaction could send or destroy.
+        seq:
+          type: integer
+          description: The Sequence Number of this transaction.
+    QueueData:
+      type: object
+      properties:
+        txn_count:
+          type: integer
+          description: Number of queued transactions from this address.
+        auth_change_queued:
+          type: boolean
+          description: Whether a transaction in the queue changes this address's ways of authorizing transactions.
+        lowest_sequence:
+          type: integer
+          description: The lowest Sequence Number among transactions queued by this address.
+        highest_sequence:
+          type: integer
+          description: The highest Sequence Number among transactions queued by this address.
+        max_spend_drops_total:
+          type: string
+          description: Integer amount of drops of XRP that could be debited from this address if every transaction in the queue consumes the maximum amount of XRP possible.
+        transactions:
+          type: array
+          description: Information about each queued transaction from this address.
+          items:
+            $ref: '#/components/schemas/Transactions'
+    AccountInfoSuccessResponseBase:
+      allOf:
+        - $ref: '#/components/schemas/BaseSuccessResponse'
+        - type: object
+          properties:
+            account_flags:
+              $ref: '#/components/schemas/AccountFlags'
+              description: The account's flag statuses.
+            ledger_current_index:
+              type: integer
+              description: The ledger index of the current in-progress ledger.
+            ledger_index:
+              type: integer
+              description: The ledger index of the ledger version used when retrieving this information.
+            queue_data:
+              $ref: '#/components/schemas/QueueData'
+              description: Information about queued transactions sent by this account.
+            validated:
+              type: boolean
+              description: True if this data is from a validated ledger version; if omitted or set to false, this data is not final.
+    AccountRoot:
+      type: object
+      properties:
+        Account:
+          type: string
+          description: The identifying (classic) address of this account.
+        AccountTxnID:
+          type: string
+          description: The identifying hash of the transaction most recently sent by this account. (Optional)
+        AMMID:
+          type: string
+          description: The ledger entry ID of the corresponding AMM ledger entry. (Optional)
+        Balance:
+          type: string
+          description: The account's current XRP balance in drops, represented as a string. (Optional)
+        BurnedNFTokens:
+          type: number
+          format: uint32
+          description: How many total of this account's issued non-fungible tokens have been burned. (Optional)
+        Domain:
+          type: string
+          description: A domain associated with this account. Cannot be more than 256 bytes in length. (Optional)
+        EmailHash:
+          type: string
+          description: The md5 hash of an email address. Clients can use this to look up an avatar. (Optional)
+        FirstNFTokenSequence:
+          type: number
+          format: uint32
+          description: The account's Sequence Number at the time it minted its first non-fungible-token. (Optional)
+        LedgerEntryType:
+          type: string
+          format: uint16
+          description: The value 0x0061, mapped to the string AccountRoot, indicates that this is an AccountRoot object.
+        MessageKey:
+          type: string
+          description: A public key that may be used to send encrypted messages to this account. Must be exactly 33 bytes. (Optional)
+        MintedNFTokens:
+          type: number
+          format: uint32
+          description: How many total non-fungible tokens have been minted by and on behalf of this account. (Optional)
+        NFTokenMinter:
+          type: string
+          description: Another account that can mint non-fungible tokens on behalf of this account. (Optional)
+        OwnerCount:
+          type: number
+          format: uint32
+          description: The number of objects this account owns in the ledger, which contributes to its owner reserve.
+        PreviousTxnID:
+          type: string
+          description: The identifying hash of the transaction that most recently modified this object.
+        PreviousTxnLgrSeq:
+          type: number
+          format: uint32
+          description: The index of the ledger that contains the transaction that most recently modified this object.
+        RegularKey:
+          type: string
+          description: The address of a key pair that can be used to sign transactions for this account instead of the master key. (Optional)
+        Sequence:
+          type: number
+          format: uint32
+          description: The sequence number of the next valid transaction for this account.
+        TicketCount:
+          type: number
+          format: uint32
+          description: How many Tickets this account owns in the ledger. (Optional)
+        TickSize:
+          type: number
+          format: uint8
+          description: How many significant digits to use for exchange rates of Offers involving currencies issued by this address. (Optional)
+        TransferRate:
+          type: number
+          format: uint32
+          description: A transfer fee to charge other users for sending currency issued by this account to each other. (Optional)
+        WalletLocator:
+          type: string
+          description: An arbitrary 256-bit value that users can set. (Optional)
+        WalletSize:
+          type: number
+          format: uint32
+          description: Unused. (The code supports this field but there is no way to set it.) (Optional)
+      required:
+        - Account
+        - LedgerEntryType
+        - PreviousTxnID
+        - PreviousTxnLgrSeq
+        - OwnerCount
+        - Sequence
+    SignerEntry:
+      type: object
+      properties:
+        Account:
+          type: string
+          description: An XRP Ledger address whose signature contributes to the multi-signature. It does not need to be a funded address in the ledger.
+          format: AccountID
+        SignerWeight:
+          type: number
+          description: The weight of a signature from this signer. A multi-signature is only valid if the sum weight of the signatures provided meets or exceeds the signer list's SignerQuorum value.
+          format: UInt16
+        WalletLocator:
+          type: string
+          description: Arbitrary hexadecimal data. This can be used to identify the signer or for other, related purposes. (Optional)
+          format: Hash256
+    SignerList:
+      type: object
+      properties:
+        LedgerEntryType:
+          type: string
+          description: The value 0x0053, mapped to the string SignerList, indicates that this is a SignerList ledger entry.
+          format: UInt16
+        OwnerNode:
+          type: string
+          description: A hint indicating which page of the owner directory links to this object, in case the directory consists of multiple pages.
+          format: UInt64
+        PreviousTxnID:
+          type: string
+          description: The identifying hash of the transaction that most recently modified this object.
+          format: Hash256
+        PreviousTxnLgrSeq:
+          type: integer
+          description: The index of the ledger that contains the transaction that most recently modified this object.
+          format: UInt32
+        SignerEntries:
+          type: array
+          description: An array of Signer Entry objects representing the parties who are part of this signer list.
+          items:
+            $ref: '#/components/schemas/SignerEntry'
+        SignerListID:
+          type: integer
+          description: An ID for this signer list. Currently always set to 0. If a future amendment allows multiple signer lists for an account, this may change.
+          format: UInt32
+        SignerQuorum:
+          type: integer
+          description: A target number for signer weights. To produce a valid signature for the owner of this SignerList, the signers must provide valid signatures whose weights sum to this value or more.
+          format: UInt32
+      required:
+        - LedgerEntryType
+        - OwnerNode
+        - PreviousTxnID
+        - PreviousTxnLgrSeq
+        - SignerEntries
+        - SignerListID
+        - SignerQuorum
+    AccountRootWithSignerLists:
+      allOf:
+        - $ref: '#/components/schemas/AccountRoot'
+        - type: object
+          properties:
+            signer_lists:
+              type: array
+              description: Array of SignerList ledger objects associated with this account for Multi-Signing.
+              items:
+                $ref: '#/components/schemas/SignerList'
+    AccountInfoSuccessResponseV1:
+      allOf:
+        - $ref: '#/components/schemas/AccountInfoSuccessResponseBase'
+        - type: object
+          properties:
+            account_data:
+              $ref: '#/components/schemas/AccountRootWithSignerLists'
+              description: The AccountRoot ledger object with this account's information, including signer lists, as stored in the ledger.
+    AccountInfoErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          oneOf:
+            - $ref: '#/components/schemas/UniversalErrorResponseCodes'
+            - enum:
+                - invalidParams
+                - actNotFound
+                - lgrNotFound
+          description: |
+            * `invalidParams` - One or more fields are specified incorrectly, or one or more required fields are missing. * `actNotFound` - The address specified in the `account` field of the request does not correspond to an account in the ledger. * `lgrNotFound` - The ledger specified by the `ledger_hash` or `ledger_index` does not exist, or it does exist but the server does not have it.
+        status:
+          type: string
+          enum:
+            - error
+        request:
+          $ref: '#/components/schemas/AccountInfoRequest'
+      required:
+        - status
+        - error
+        - request
+    AccountInfoResponseV1:
+      type: object
+      properties:
+        result:
+          type: object
+          discriminator:
+            propertyName: status
+            mapping:
+              success: '#/components/schemas/AccountInfoSuccessResponseV1'
+              error: '#/components/schemas/AccountInfoErrorResponse'
+          oneOf:
+            - $ref: '#/components/schemas/AccountInfoSuccessResponseV1'
+            - $ref: '#/components/schemas/AccountInfoErrorResponse'
+      required:
+        - result
+      example:
+        result:
+          account_data:
+            Account: rf1BiGeXwwQoi8Z2ueFYTEXSwuJYfV2Jpn
+            Balance: '999999999960'
+            Flags: 8388608
+            LedgerEntryType: AccountRoot
+            OwnerCount: 0
+            PreviousTxnID: 4294BEBE5B569A18C0A2702387C9B1E7146DC3A5850C1E87204951C6FDAA4C42
+            PreviousTxnLgrSeq: 3
+            Sequence: 6
+            index: 92FA6A9FC8EA6018D5D16532D7795C91BFB0831355BDFDA177E86C8BF997985F
+          ledger_current_index: 71766343
+          queue_data:
+            auth_change_queued: true
+            highest_sequence: 10
+            lowest_sequence: 6
+            max_spend_drops_total: '500'
+            transactions:
+              - auth_change: false
+                fee: '100'
+                fee_level: '2560'
+                max_spend_drops: '100'
+                seq: 6
+              - LastLedgerSequence: 10
+                auth_change: false
+                fee: '100'
+                fee_level: '2560'
+                max_spend_drops: '100'
+                seq: 10
+            txn_count: 5
+          status: success
+          validated: true
+    SubmitSuccessResponseBase:
+      allOf:
+        - $ref: '#/components/schemas/BaseSuccessResponse'
+        - type: object
+          properties:
+            engine_result:
+              type: string
+              description: Text result code indicating the preliminary result of the transaction, for example tesSUCCESS
+            engine_result_code:
+              type: integer
+              description: Numeric version of the result code. Not recommended.
+            engine_result_message:
+              type: string
+              description: Human-readable explanation of the transaction's preliminary result
+            tx_blob:
+              type: string
+              description: The complete transaction in hex string format
+            accepted:
+              type: boolean
+              description: |
+                (Omitted in sign-and-submit mode) The value true indicates that the transaction was applied, queued, broadcast, or kept for later.
+                The value false indicates that none of those happened, so the transaction cannot possibly succeed as long as you do not submit it again and have not already submitted it another time.
+            account_sequence_available:
+              type: number
+              description: |
+                (Omitted in sign-and-submit mode) The next Sequence Number available for the sending account after all pending and queued transactions.
+            account_sequence_next:
+              type: number
+              description: |
+                (Omitted in sign-and-submit mode) The next Sequence Number for the sending account after all transactions that have been provisionally applied, but not transactions in the queue.
+            applied:
+              type: boolean
+              description: |
+                (Omitted in sign-and-submit mode) The value true indicates that this transaction was applied to the open ledger.
+                In this case, the transaction is likely, but not guaranteed, to be validated in the next ledger version.
+            broadcast:
+              type: boolean
+              description: |
+                (Omitted in sign-and-submit mode) The value true indicates this transaction was broadcast to peer servers in the peer-to-peer XRP Ledger network.
+                (Note: if the server has no peers, such as in stand-alone mode, the server uses the value true for cases where it would have broadcast the transaction.)
+                The value false indicates the transaction was not broadcast to any other servers.
+            kept:
+              type: boolean
+              description: |
+                (Omitted in sign-and-submit mode) The value true indicates that the transaction was kept to be retried later.
+            queued:
+              type: boolean
+              description: |
+                (Omitted in sign-and-submit mode) The value true indicates the transaction was put in the Transaction Queue, which means it is likely to be included in a future ledger version.
+            open_ledger_cost:
+              type: string
+              description: |
+                (Omitted in sign-and-submit mode) The current open ledger cost before processing this transaction.
+                Transactions with a lower cost are likely to be queued.
+            validated_ledger_index:
+              type: integer
+              description: |
+                (Omitted in sign-and-submit mode) The ledger index of the newest validated ledger at the time of submission.
+                This provides a lower bound on the ledger versions that the transaction can appear in as a result of this request.
+                (The transaction could only have been validated in this ledger version or earlier if it had already been submitted before.)
+    SubmitSuccessResponseV1:
+      type: object
+      allOf:
+        - $ref: '#/components/schemas/SubmitSuccessResponseBase'
+      properties:
+        tx_json:
+          discriminator:
+            propertyName: TransactionType
+            mapping:
+              Payment: '#/components/schemas/PaymentTransactionV1'
+          oneOf:
+            - $ref: '#/components/schemas/PaymentTransactionV1'
+    PaymentTransactionV2:
+      type: object
+      allOf:
+        - $ref: '#/components/schemas/PaymentTransactionBase'
+      properties:
+        DeliverMax:
+          $ref: '#/components/schemas/CurrencyAmount'
+          description: 'Only available in API v2. The maximum amount of currency to deliver. For non-XRP amounts, the nested field names MUST be lower-case. If the tfPartialPayment flag is set, deliver up to this amount instead. New in: rippled 2.0.0'
+      required:
+        - DeliverMax
+    SignAndSubmitModeV2:
+      type: object
+      allOf:
+        - $ref: '#/components/schemas/SignAndSubmitModeBase'
+      properties:
+        tx_json:
+          type: object
+          discriminator:
+            propertyName: TransactionType
+            mapping:
+              Payment: '#/components/schemas/PaymentTransactionV2'
+          oneOf:
+            - $ref: '#/components/schemas/PaymentTransactionV2'
+          description: Transaction definition in JSON format, optionally omitting any auto-fillable fields.
+      required:
+        - tx_json
+    SubmitRequestV2:
+      oneOf:
+        - $ref: '#/components/schemas/SubmitOnlyMode'
+        - $ref: '#/components/schemas/SignAndSubmitModeV2'
+    SubmitErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          oneOf:
+            - $ref: '#/components/schemas/UniversalErrorResponseCodes'
+            - enum:
+                - amendmentBlocked
+                - highFee
+                - internalJson
+                - internalSubmit
+                - internalTransaction
+                - invalidParams
+                - invalidTransaction
+                - noPath
+                - tooBusy
+                - notSupported
+          description: |
+            * `amendmentBlocked` - The transaction cannot be submitted to the network because the rippled server is amendment blocked. * `highFee` - The fee_mult_max parameter was specified, but the server's current fee multiplier exceeds the specified one. (Sign-and-Submit mode only) * `internalJson` - An internal error occurred when serializing the transaction to JSON. This could be caused by many aspects of the transaction, including a bad signature or some fields being malformed. * `internalSubmit` - An internal error occurred when submitting the transaction. This could be caused by many aspects of the transaction, including a bad signature or some fields being malformed. * `internalTransaction` - An internal error occurred when processing the transaction. This could be caused by many aspects of the transaction, including a bad signature or some fields being malformed. * `invalidParams` - One or more fields are specified incorrectly, or one or more required fields are missing. * `invalidTransaction` - The transaction is malformed or otherwise invalid. * `noPath` - The transaction did not include paths, and the server was unable to find a path by which this payment can occur. (Sign-and-Submit mode only) * `tooBusy` - The transaction did not include paths, but the server is too busy to do pathfinding right now. Does not occur if you are connected as an admin. (Sign-and-Submit mode only) * `notSupported` - Signing is not supported by this server (Sign-and-Submit mode only.) If you are the server admin, you can still access signing when connected as an admin, or you could enable public signing.
+        status:
+          type: string
+          enum:
+            - error
+        request:
+          oneOf:
+            - $ref: '#/components/schemas/SubmitRequestV1'
+            - $ref: '#/components/schemas/SubmitRequestV2'
+      required:
+        - status
+        - error
+        - request
+    SubmitResponseV1:
+      type: object
+      properties:
+        result:
+          type: object
+          discriminator:
+            propertyName: status
+            mapping:
+              success: '#/components/schemas/SubmitSuccessResponseV1'
+              error: '#/components/schemas/SubmitErrorResponse'
+          oneOf:
+            - $ref: '#/components/schemas/SubmitSuccessResponseV1'
+            - $ref: '#/components/schemas/SubmitErrorResponse'
+      required:
+        - result
+      example:
+        result:
+          accepted: true
+          account_sequence_available: 362
+          account_sequence_next: 362
+          applied: true
+          broadcast: true
+          engine_result: tesSUCCESS
+          engine_result_code: 0
+          engine_result_message: The transaction was applied. Only final in a validated ledger.
+          status: success
+          kept: true
+          open_ledger_cost: 10
+          queued: false
+          tx_blob: 1200002280000000240000016961D4838D7EA4C6800000000000000000000000000055534400000000004B4E9C06F24296074F7BC48F92A97916C6DC5EA9684000000000002710732103AB40A0490F9B7ED8DF29D246BF2D6269820A0EE7742ACDD457BEA7C7D0931EDB74473045022100A7CCD11455E47547FF617D5BFC15D120D9053DFD0536B044F10CA3631CD609E502203B61DEE4AC027C5743A1B56AF568D1E2B8E79BB9E9E14744AC87F38375C3C2F181144B4E9C06F24296074F7BC48F92A97916C6DC5EA983143E9D4A2B8AA0780F682D136F7A56D6724EF53754
+          tx_json:
+            Account: rf1BiGeXwwQoi8Z2ueFYTEXSwuJYfV2Jpn
+            Amount:
+              currency: USD
+              issuer: rf1BiGeXwwQoi8Z2ueFYTEXSwuJYfV2Jpn
+              value: 1
+            Destination: ra5nK24KXen9AHvsdFTKHSANinZseWnPcX
+            Fee: 10000
+            Flags: 2147483648
+            Sequence: 361
+            SigningPubKey: 03AB40A0490F9B7ED8DF29D246BF2D6269820A0EE7742ACDD457BEA7C7D0931EDB
+            TransactionType: Payment
+            TxnSignature: 3045022100A7CCD11455E47547FF617D5BFC15D120D9053DFD0536B044F10CA3631CD609E502203B61DEE4AC027C5743A1B56AF568D1E2B8E79BB9E9E14744AC87F38375C3C2F1
+            hash: 5B31A7518DC304D5327B4887CD1F7DC2C38D5F684170097020C7C9758B973847
+        validated_ledger_index: 21184416

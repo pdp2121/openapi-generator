@@ -4,8 +4,12 @@
 .travis.yml
 README.md
 custom_header.py
+docs/BasePet.md
+docs/Cat.md
+docs/Dog.md
 docs/Pet.md
 docs/PetApi.md
+docs/PetDetails.md
 git_push.sh
 openapi_client/__init__.py
 openapi_client/api/__init__.py
@@ -15,7 +19,11 @@ openapi_client/api_response.py
 openapi_client/configuration.py
 openapi_client/exceptions.py
 openapi_client/models/__init__.py
+openapi_client/models/base_pet.custom_model.py
+openapi_client/models/cat.custom_model.py
+openapi_client/models/dog.custom_model.py
 openapi_client/models/pet.custom_model.py
+openapi_client/models/pet_details.custom_model.py
 openapi_client/py.typed
 openapi_client/rest.py
 pyproject.toml
@@ -24,4 +32,8 @@ setup.cfg
 setup.py
 test-requirements.txt
 test/__init__.py
+test/test_base_pet.py
+test/test_cat.py
+test/test_dog.py
+test/test_pet_details.py
 tox.ini

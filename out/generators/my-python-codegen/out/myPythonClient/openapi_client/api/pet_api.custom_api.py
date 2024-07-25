@@ -13,6 +13,13 @@ classname: PetApi
 # loop over each operation in the API:
 
 # each operation has an `operationId`:
+operationId: get_pet_by_id
+
+# and parameters:
+pet_id: int
+
+
+# each operation has an `operationId`:
 operationId: list_pets
 
 # and parameters:

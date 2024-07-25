@@ -2,7 +2,6 @@ package com.my.company.codegen;
 
 import org.openapitools.codegen.CodegenConfig;
 import org.openapitools.codegen.SupportingFile;
-import org.openapitools.codegen.languages.PythonClientCodegen;
 
 public class MyPythonCodegen extends PythonClientCodegen implements CodegenConfig {
   public MyPythonCodegen() {

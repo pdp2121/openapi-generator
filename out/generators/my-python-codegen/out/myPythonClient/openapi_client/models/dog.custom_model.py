@@ -22,14 +22,14 @@ from typing import Any, ClassVar, Dict, List, Optional
 from typing import Optional, Set
 from typing_extensions import Self
 
-class Pet(BaseModel):
+class Dog(BaseModel):
     """
-    Pet
+    Dog
     """ # noqa: E501
     id: StrictInt
     name: StrictStr
-    tag: Optional[StrictStr] = None
-    __properties: ClassVar[List[str]] = ["id", "name", "tag"]
+    breed: Optional[StrictStr] = None
+    __properties: ClassVar[List[str]] = ["id", "name", "breed"]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -49,7 +49,7 @@ class Pet(BaseModel):
 
     @classmethod
     def from_json(cls, json_str: str) -> Optional[Self]:
-        """Create an instance of Pet from a JSON string"""
+        """Create an instance of Dog from a JSON string"""
         return cls.from_dict(json.loads(json_str))
 
     def to_dict(self) -> Dict[str, Any]:
@@ -74,7 +74,7 @@ class Pet(BaseModel):
 
     @classmethod
     def from_dict(cls, obj: Optional[Dict[str, Any]]) -> Optional[Self]:
-        """Create an instance of Pet from a dict"""
+        """Create an instance of Dog from a dict"""
         if obj is None:
             return None
 
@@ -84,7 +84,7 @@ class Pet(BaseModel):
         _obj = cls.model_validate({
             "id": obj.get("id"),
             "name": obj.get("name"),
-            "tag": obj.get("tag")
+            "breed": obj.get("breed")
         })
         return _obj
 
