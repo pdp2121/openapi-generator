@@ -1183,9 +1183,9 @@ public abstract class AbstractPythonCodegen extends DefaultCodegen implements Co
      * @return model name
      */
     private String getModelNameFromDataType(CodegenProperty cp) {
-        if (cp.isArray) {
+        if (cp.isArray && cp.items != null) {
             return getModelNameFromDataType(cp.items);
-        } else if (cp.isMap) {
+        } else if (cp.isMap && cp.items != null) {
             return getModelNameFromDataType(cp.items);
         } else if (!cp.isPrimitiveType || cp.isModel) {
             return cp.getDataType();
