@@ -1,10 +1,12 @@
 # AccountInfoRequest
 
+The account_info command retrieves information about an account, its activity, and its XRP balance. All information retrieved is relative to a particular version of the ledger. Returns an AccountInfoResponse 
 
 ## Properties
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
+**method** | **str** |  | 
 **account** | **str** | The account to look up. | 
 **queue** | **bool** | If true, return stats about queued transactions sent by this account. Can only be used when querying for the data from the current open ledger. Not available from servers in Reporting Mode. | [optional] 
 **signer_lists** | **bool** | API v1: If true, return any SignerList objects associated with this account. API v2: Identical to v1, but also returns an invalidParams error if you provide a non-boolean value.  | [optional] 

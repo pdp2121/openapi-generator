@@ -1,0 +1,20 @@
+{
+ "version": "0.2.0",
+ "configurations": [
+     {
+         "type": "java",
+         "name": "Debug (Launch) - Current File",
+         "request": "launch",
+         "mainClass": "${file}",
+         "projectName": "${workspaceFolderBasename}"
+     },
+     {
+         "type": "java",
+         "name": "Debug (Launch) - Entire Project",
+         "request": "launch",
+         "mainClass": "MyPythonCodegen", // Replace "com.example.Main" with your project's main class
+         "projectName": "${workspaceFolderBasename}",
+         "args": "" // If your program requires command line arguments, add them here
+     }
+ ]
+}

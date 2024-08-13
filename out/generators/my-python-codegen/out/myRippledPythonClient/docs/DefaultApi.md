@@ -4,11 +4,13 @@ All URIs are relative to *https://s1.ripple.com:51234*
 
 Method | HTTP request | Description
 ------------- | ------------- | -------------
-[**p_ost**](DefaultApi.md#p_ost) | **POST** / | Send JSON-RPC request to server
+[**p_ost**](DefaultApi.md#p_ost) | **POST** / | 
 
 
 # **p_ost**
 > POST200Response p_ost(post_request)
+
+
 
 Send JSON-RPC request to server
 
@@ -36,7 +38,6 @@ with openapi_client.ApiClient(configuration) as api_client:
     post_request = openapi_client.POSTRequest() # POSTRequest | JSON-RPC request object
 
     try:
-        # Send JSON-RPC request to server
         api_response = api_instance.p_ost(post_request)
         print("The response of DefaultApi->p_ost:\n")
         pprint(api_response)

@@ -12,7 +12,7 @@ security: []
 paths:
   /:
     post:
-      summary: Send JSON-RPC request to server
+      description: Send JSON-RPC request to server
       requestBody:
         description: JSON-RPC request object
         content:
@@ -85,7 +85,7 @@ components:
           type: integer
           description: The API version to use. If omitted, uses version 1.
     AccountChannelsRequest:
-      summary: |
+      description: |
         The account_channels method returns information about an account's Payment Channels.  This includes only channels where the specified account is the channel's source, not the destination.  (A channel's source and owner are the same.) All information retrieved is relative to a particular version of the ledger.  Returns an AccountChannelsResponse.
       type: object
       allOf:
@@ -129,13 +129,17 @@ components:
             destination_account: ra5nK24KXen9AHvsdFTKHSANinZseWnPcX
             ledger_index": validated
     AccountInfoRequest:
-      summary: |
+      description: |
         The account_info command retrieves information about an account, its activity, and its XRP balance. All information retrieved is relative to a particular version of the ledger. Returns an AccountInfoResponse
       type: object
       allOf:
         - $ref: '#/components/schemas/LookupByLedgerRequest'
         - $ref: '#/components/schemas/BaseRequest'
       properties:
+        method:
+          type: string
+          enum:
+            - account_info
         account:
           type: string
           description: The account to look up.
@@ -148,6 +152,7 @@ components:
             API v1: If true, return any SignerList objects associated with this account. API v2: Identical to v1, but also returns an invalidParams error if you provide a non-boolean value.
       required:
         - account
+        - method
     schemas-AccountInfoRequest:
       type: object
       description: |
@@ -326,7 +331,7 @@ components:
           type: string
           description: 'DEPRECATED: (Optional) A hexadecimal representation of the type field.'
     PaymentTransactionBase:
-      summary: |
+      description: |
         A Payment transaction represents a transfer of value from one account to another. (Depending on the path taken, this can involve additional exchanges of value, which occur atomically.) This transaction type can be used for several types of payments. Payments are also the only way to create accounts.
       type: object
       allOf:

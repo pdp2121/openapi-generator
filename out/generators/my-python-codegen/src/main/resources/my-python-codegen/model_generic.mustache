@@ -27,6 +27,9 @@ class {{classname}}({{#parent}}{{{.}}}{{/parent}}{{^parent}}BaseModel{{/parent}}
     """
     {{#description}}{{{description}}}{{/description}}{{^description}}{{{classname}}}{{/description}}
     """ # noqa: E501
+{{#vendorExtensions.x-method-name}}
+    method: str = "{{vendorExtensions.x-method-name}}"
+{{/vendorExtensions.x-method-name}}
 {{#vars}}
     {{name}}: {{{vendorExtensions.x-py-typing}}}
 {{/vars}}
@@ -171,7 +174,7 @@ class {{classname}}({{#parent}}{{{.}}}{{/parent}}{{^parent}}BaseModel{{/parent}}
                     _items.append(
                          [_inner_item.to_dict() for _inner_item in _item if _inner_item is not None]
                     )
-            _dict['{{{baseName}}}'] = _items
+            _dict['{{{name}}}'] = _items
         {{/items.items.isPrimitiveType}}
         {{/items.isArray}}
         {{^items.isArray}}
@@ -183,7 +186,7 @@ class {{classname}}({{#parent}}{{{.}}}{{/parent}}{{^parent}}BaseModel{{/parent}}
             for _item in self.{{{name}}}:
                 if _item:
                     _items.append(_item.to_dict())
-            _dict['{{{baseName}}}'] = _items
+            _dict['{{{name}}}'] = _items
         {{/items.isEnumOrRef}}
         {{/items.isPrimitiveType}}
         {{/items.isArray}}
@@ -199,7 +202,7 @@ class {{classname}}({{#parent}}{{{.}}}{{/parent}}{{^parent}}BaseModel{{/parent}}
                     _field_dict_of_array[_key] = [
                         _item.to_dict() for _item in self.{{{name}}}[_key]
                     ]
-            _dict['{{{baseName}}}'] = _field_dict_of_array
+            _dict['{{{name}}}'] = _field_dict_of_array
         {{/items.items.isPrimitiveType}}
         {{/items.isArray}}
         {{^items.isArray}}
@@ -211,7 +214,7 @@ class {{classname}}({{#parent}}{{{.}}}{{/parent}}{{^parent}}BaseModel{{/parent}}
             for _key in self.{{{name}}}:
                 if self.{{{name}}}[_key]:
                     _field_dict[_key] = self.{{{name}}}[_key].to_dict()
-            _dict['{{{baseName}}}'] = _field_dict
+            _dict['{{{name}}}'] = _field_dict
         {{/items.isEnumOrRef}}
         {{/items.isPrimitiveType}}
         {{/items.isArray}}
@@ -222,7 +225,7 @@ class {{classname}}({{#parent}}{{{.}}}{{/parent}}{{^parent}}BaseModel{{/parent}}
         {{^isEnumOrRef}}
         # override the default output from pydantic by calling `to_dict()` of {{{name}}}
         if self.{{{name}}}:
-            _dict['{{{baseName}}}'] = self.{{{name}}}.to_dict()
+            _dict['{{{name}}}'] = self.{{{name}}}.to_dict()
         {{/isEnumOrRef}}
         {{/isPrimitiveType}}
         {{/isContainer}}
@@ -239,10 +242,11 @@ class {{classname}}({{#parent}}{{{.}}}{{/parent}}{{^parent}}BaseModel{{/parent}}
         # set to None if {{{name}}} (nullable) is None
         # and model_fields_set contains the field
         if self.{{name}} is None and "{{{name}}}" in self.model_fields_set:
-            _dict['{{{baseName}}}'] = None
+            _dict['{{{name}}}'] = None
 
         {{/isNullable}}
         {{/allVars}}
+        
         return _dict
 
     {{#hasChildren}}

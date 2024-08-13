@@ -1,5 +1,6 @@
 # AccountChannelsRequest
 
+The account_channels method returns information about an account's Payment Channels.  This includes only channels where the specified account is the channel's source, not the destination.  (A channel's source and owner are the same.) All information retrieved is relative to a particular version of the ledger.  Returns an AccountChannelsResponse. 
 
 ## Properties
 

@@ -1,5 +1,6 @@
 # PaymentTransactionBase
 
+A Payment transaction represents a transfer of value from one account to another. (Depending on the path taken, this can involve additional exchanges of value, which occur atomically.) This transaction type can be used for several types of payments. Payments are also the only way to create accounts. 
 
 ## Properties
 
